@@ -114,6 +114,10 @@ def fetch_records(cookies, csrf):
             seen_pages.add(fingerprint)
             all_records.extend(records)
             print(f"Fetched page {page}: {len(records)} employees (total {len(all_records)}).")
+            # The working Zoho view returns 200 records per full page.
+            # A shorter page is the final page, as in the original Colab script.
+            if len(records) < BATCH_SIZE:
+                return all_records
             # Advance by the actual page length, rather than assuming the server page size.
             start += len(records)
     raise SyncError("Zoho exceeded the page limit; worksheet left unchanged.")

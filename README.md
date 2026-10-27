@@ -27,7 +27,7 @@ Open **Actions → Daily Zoho to Google Sheets → Run workflow** on the default
 - Preserves the original field order, all-employee status filter, header formatting, frozen header, and IST timestamp. Replaces this worksheet's values and clears stale rows; other tabs are unchanged.
 - Uses text cells to preserve employee IDs, phone numbers, and formula-like source values.
 - Fetches and validates every page before writing. Failed requests, missing record lists, repeated pages, malformed fields, and empty exports stop the sync.
-- Advances by each page's actual length and continues until an explicit empty employee list. If Zoho uses a different end-of-results response, it fails safely until that response is supported.
+- Advances by each page's actual length and stops when a page has fewer than 200 employees, matching the original view and Colab script. An empty list also ends pagination.
 - Writes values, stale-cell cleanup, and formatting in one atomic Sheets batch. If the tab is missing, it is created first; an unsuccessful final write may leave a new empty tab.
 - Does not log employee rows, cookies, credentials, or response bodies. Failed runs exit with a failure status. Check GitHub notification preferences for failure alerts.
 - Browser-session cookies expire. Refresh both Zoho secrets when needed. A supported OAuth/API integration would be needed to remove that manual maintenance.
