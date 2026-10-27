@@ -1,0 +1,39 @@
+name: Daily Zoho to Google Sheets
+
+on:
+  schedule:
+    - cron: '30 3 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: zoho-employee-sheet-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+          cache: pip
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Refresh Employee Work Mode
+        env:
+          ZOHO_URL: ${{ secrets.ZOHO_URL }}
+          ZOHO_FORM_ID: ${{ secrets.ZOHO_FORM_ID }}
+          ZOHO_VIEW_ID: ${{ secrets.ZOHO_VIEW_ID }}
+          GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
+          ZOHO_COOKIES: ${{ secrets.ZOHO_COOKIES }}
+          ZOHO_CSRF_TOKEN: ${{ secrets.ZOHO_CSRF_TOKEN }}
+          GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+          PYTHONUNBUFFERED: '1'
+        run: python sync_zoho.py
