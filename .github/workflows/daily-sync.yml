@@ -33,7 +33,7 @@ jobs:
           ZOHO_VIEW_ID: ${{ secrets.ZOHO_VIEW_ID }}
           GOOGLE_SHEET_ID: ${{ secrets.GOOGLE_SHEET_ID }}
           ZOHO_COOKIES: ${{ secrets.ZOHO_COOKIES }}
-          ZOHO_CSRF_TOKEN: ${{ secrets.ZOHO_CSRF_TOKEN }}
+          ZOHO_CSRF_TOKEN: ${{ secrets.ZOHO_CSRF_TOKEN || secrets.CSRF_TOKEN }}
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
           PYTHONUNBUFFERED: '1'
         run: python sync_zoho.py
