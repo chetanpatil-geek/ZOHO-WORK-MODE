@@ -3,6 +3,8 @@ import ast
 import hashlib
 import json
 import os
+import re
+import hmac
 import sys
 from datetime import datetime, timezone, timedelta
 from urllib.parse import urlsplit
@@ -25,6 +27,9 @@ def required_secret(name):
     value = os.environ.get(name, "").strip()
     if not value:
         raise SyncError(f"Missing GitHub Actions secret: {name}")
+    # Accept accidental surrounding Python quotes when copying a literal.
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in ("\"", "\'"):
+        value = value[1:-1]
     return value
 
 
@@ -52,6 +57,11 @@ def clean_value(value):
 
 
 def fetch_records(cookies, csrf):
+    cookie_token = re.search(r"(?:^|;\s*)CSRF_TOKEN=([^;]+)", cookies)
+    if cookie_token and not hmac.compare_digest(cookie_token.group(1).strip('"'), csrf):
+        raise SyncError("The CSRF token does not match the token inside ZOHO_COOKIES. Copy both secrets from the same working Colab session.")
+    if "\n" in cookies or "\r" in cookies:
+        raise SyncError("ZOHO_COOKIES must be the single-line Cookie header value.")
     zoho_url = required_secret("ZOHO_URL")
     form_id = required_secret("ZOHO_FORM_ID")
     view_id = required_secret("ZOHO_VIEW_ID")
@@ -65,14 +75,8 @@ def fetch_records(cookies, csrf):
     record_key = None
     start = 1
     with requests.Session() as session:
-        session.headers.update({
-            "Cookie": cookies,
-            "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8",
-            "Origin": origin,
-            "Referer": referer,
-            "User-Agent": "Mozilla/5.0",
-            "X-Requested-With": "XMLHttpRequest",
-        })
+        session.headers.update({'Content-Type': 'application/x-www-form-urlencoded; charset=UTF-8', 'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/146.0.0.0 Safari/537.36', 'X-Requested-With': 'XMLHttpRequest', 'sec-ch-ua': '"Chromium";v="146", "Not-A.Brand";v="24", "Google Chrome";v="146"', 'sec-ch-ua-mobile': '?0', 'sec-ch-ua-platform': '"macOS"', 'Accept': '*/*', 'Accept-Language': 'en-GB,en-US;q=0.9,en;q=0.8', 'Sec-Fetch-Dest': 'empty', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Site': 'same-origin'})
+        session.headers.update({"Cookie": cookies, "Origin": origin, "Referer": referer})
         for page in range(1, 1001):
             try:
                 response = session.post(zoho_url, data={
