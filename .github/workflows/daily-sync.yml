@@ -2,11 +2,14 @@ name: Daily Zoho to Google Sheets
 
 on:
   schedule:
-    - cron: '30 3 * * *'
+    # Main trigger at 09:00 IST; backups only sync if none succeeded this morning.
+    - cron: '0,15,30 9 * * *'
+      timezone: Asia/Kolkata
   workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: zoho-employee-sheet-sync
@@ -20,13 +23,39 @@ jobs:
       - uses: actions/checkout@v7
         with:
           persist-credentials: false
+      - name: Check whether this morning already synced
+        id: daily
+        env:
+          GH_TOKEN: ${{ github.token }}
+          EVENT_NAME: ${{ github.event_name }}
+        shell: python
+        run: |
+          import datetime, json, os, urllib.parse, urllib.request
+          from zoneinfo import ZoneInfo
+          should_run = True
+          if os.environ["EVENT_NAME"] == "schedule":
+              now = datetime.datetime.now(ZoneInfo("Asia/Kolkata"))
+              morning = now.replace(hour=9, minute=0, second=0, microsecond=0)
+              cutoff = morning.astimezone(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+              query = urllib.parse.urlencode({"status": "success", "created": ">=" + cutoff, "per_page": 100})
+              url = os.environ["GITHUB_API_URL"] + "/repos/" + os.environ["GITHUB_REPOSITORY"] + "/actions/workflows/daily-sync.yml/runs?" + query
+              request = urllib.request.Request(url, headers={"Authorization": "Bearer " + os.environ["GH_TOKEN"], "Accept": "application/vnd.github+json"})
+              with urllib.request.urlopen(request, timeout=30) as response:
+                  runs = json.load(response)["workflow_runs"]
+              should_run = not any(run["head_branch"] == "main" and run["id"] != int(os.environ["GITHUB_RUN_ID"]) for run in runs)
+          with open(os.environ["GITHUB_OUTPUT"], "a") as output:
+              output.write("should_run=" + str(should_run).lower() + "\n")
+          print("Sync is needed." if should_run else "Already synced successfully this morning; skipping backup.")
       - uses: actions/setup-python@v7
+        if: steps.daily.outputs.should_run == 'true'
         with:
           python-version: '3.12'
           cache: pip
       - name: Install dependencies
+        if: steps.daily.outputs.should_run == 'true'
         run: python -m pip install -r requirements.txt
       - name: Refresh Employee Work Mode
+        if: steps.daily.outputs.should_run == 'true'
         env:
           ZOHO_URL: ${{ secrets.ZOHO_URL }}
           ZOHO_FORM_ID: ${{ secrets.ZOHO_FORM_ID }}
